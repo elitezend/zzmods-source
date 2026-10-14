@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "auctionoverlay",
+  "version": "2.0.3",
+  "name": "Auction Overlay",
+  "description": "In-game auction panel for auctioning items to viewers. Tap Right Shift to open or hide it.",
+  "authors": ["rcandmorebash"],
+  "license": "LicenseRef-All-Rights-Reserved",
+  "icon": "assets/auctionoverlay/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.auctionoverlay.AuctionMod"]
+  },
+  "mixins": ["auctionoverlay.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~26.2-",
+    "java": ">=25"
+  }
+}

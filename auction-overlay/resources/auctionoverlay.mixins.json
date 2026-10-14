@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "package": "com.auctionoverlay.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "minVersion": "0.8",
+  "client": [
+    "ChatListenerMixin",
+    "HudMixin",
+    "KeyboardHandlerMixin",
+    "MinecraftMixin",
+    "PauseScreenMixin",
+    "MouseHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

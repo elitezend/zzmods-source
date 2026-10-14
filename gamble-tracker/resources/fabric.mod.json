@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "gambletracker",
+  "version": "2.0.0",
+  "name": "Gamble Tracker",
+  "description": "Queue of everyone who paid you between your min and max bet. Tap Right Ctrl to show or hide the card, Right Alt to open the panel.",
+  "authors": [
+    "rcandmorebash"
+  ],
+  "license": "LicenseRef-All-Rights-Reserved",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.gambletracker.GambleMod"
+    ]
+  },
+  "mixins": [
+    "gambletracker.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~26.2-",
+    "java": ">=25"
+  }
+}

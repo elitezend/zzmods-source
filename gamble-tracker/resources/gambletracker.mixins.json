@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "package": "com.gambletracker.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "minVersion": "0.8",
+  "client": [
+    "ChatListenerMixin",
+    "HudMixin",
+    "KeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "ChatScreenMixin",
+    "PauseScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
