@@ -60,10 +60,9 @@ public final class Style {
 
     public static Look look() {
         if (!Edition.LOOKS) {
-            return Look.CLASSIC;
+            return Look.CLASSIC; // Free: always the Classic look
         }
-        AuctionState.Config c = AuctionState.INSTANCE.config;
-        return Look.parse(c.look, c.roundedLook ? Look.ROUNDED : Look.CLASSIC);
+        return Look.parse(AuctionState.INSTANCE.config.look, Look.PLAIN);
     }
 
     public static boolean modern() {
@@ -177,10 +176,21 @@ public final class Style {
         }
     }
 
-    // Plain: a flat rectangle with a 1px line round it
+    // Default (Plain): a flat box with a 1px line round it; its corners follow the Corners setting (square at "Sharp")
     private static void plainBox(GuiGraphicsExtractor g, int x, int y, int w, int h, int fill, int line) {
-        g.fill(x, y, x + w, y + h, line);
-        g.fill(x + 1, y + 1, x + w - 1, y + h - 1, fill);
+        round(g, x, y, w, h, 2, line);
+        round(g, x + 1, y + 1, w - 2, h - 2, 1, fill);
+    }
+
+    // the corner radius round() really uses for r at this size
+    private static int scaledR(int r, int w, int h) {
+        return Math.max(0, Math.min(Math.round(r * corners), Math.min(w, h) / 2));
+    }
+
+    // light text keeps Minecraft's drop shadow; dark text (on a light button) doesn't, or it looks doubled
+    private static boolean light(int color) {
+        int r = (color >> 16) & 255, gr = (color >> 8) & 255, b = color & 255;
+        return r * 299 + gr * 587 + b * 114 > 100_000;
     }
 
     // black or white text, whichever reads on that fill
@@ -191,10 +201,14 @@ public final class Style {
 
     public static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h, int alpha) {
         switch (look()) {
-            case PLAIN -> { // solid, square, one accent line along the top - never see-through
-                g.fill(x - 1, y - 1, x + w + 1, y + h + 1, 0xFF0C0C0C);
-                g.fill(x, y, x + w, y + h, Colors.BG);
-                g.fill(x, y, x + w, y + 2, Colors.ACCENT_A);
+            case PLAIN -> { // flat, one accent line along the top; the opacity slider and Corners apply
+                round(g, x - 1, y - 1, w + 2, h + 2, 4, fade(0xFF0C0C0C, alpha));
+                round(g, x, y, w, h, 3, Colors.withAlpha(Colors.BG, alpha));
+                int r = scaledR(3, w, h);
+                for (int row = 0; row < 2; row++) {
+                    int in = rowInset(h, r, row);
+                    g.fill(x + in, y + row, x + w - in, y + row + 1, Colors.ACCENT_A);
+                }
             }
             case SLEEK -> {
                 Smooth.shadow(g, x, y, w, h, 10, 9, fade(0x8C000000, alpha));
@@ -482,19 +496,19 @@ public final class Style {
             g.pose().pushMatrix();
             g.pose().translate(x + (w - tw * s) / 2, y + (h - 8 * s) / 2);
             g.pose().scale(s, s);
-            Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow);
+            Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow && light(color));
             g.pose().popMatrix();
             return;
         }
         if (tw <= w - 4) {
-            Txt.center(g, font, label, x + w / 2, y + (h - 8) / 2, color);
+            Txt.draw(g, font, label, x + (w - tw) / 2, y + (h - 8) / 2, color, light(color));
             return;
         }
         float s = Math.max(0.6F, (float) Math.floor((w - 4) / (float) tw * 10) / 10); // 10% steps: fewer text sizes
         g.pose().pushMatrix();
         g.pose().translate(x + (w - tw * s) / 2, y + (h - 8 * s) / 2);
         g.pose().scale(s, s);
-        Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow);
+        Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow && light(color));
         g.pose().popMatrix();
     }
 

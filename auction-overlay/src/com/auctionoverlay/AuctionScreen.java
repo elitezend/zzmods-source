@@ -1153,6 +1153,24 @@ public class AuctionScreen extends Screen {
         settingRows.add(new Row(label, y));
     }
 
+    // the one enabled button on the settings row under the mouse, or null (no row there, or it has several buttons)
+    private Btn rowButton(double mx, double my) {
+        if (mx < x0 || mx >= x0 + CW) return null;
+        for (Row r : settingRows) {
+            if (my < r.y() - 1 || my >= r.y() + 14) continue;
+            Btn only = null;
+            int n = 0;
+            for (Btn b : buttons) {
+                if (b.y() == r.y()) {
+                    n++;
+                    only = b;
+                }
+            }
+            return n == 1 && only.enabled() ? only : null;
+        }
+        return null;
+    }
+
     private void setting(int x, int y, String value, boolean enabled, Runnable action) {
         buttons.add(new Btn(x, y, 80, 13, value, Colors.BTN, enabled, action));
     }
@@ -1955,6 +1973,15 @@ public class AuctionScreen extends Screen {
                 return true;
             }
         }
+        // clicking a setting's name does what its button does (settings rows with one button)
+        if (settingsOpen) {
+            Btn only = rowButton(mx, my);
+            if (only != null) {
+                AuctionState.click();
+                only.action().run();
+                return true;
+            }
+        }
         if (Online.update() != null && my >= footerY - 2 && my < footerY + 10 && mx >= x0 + CW - 70 && mx < x0 + CW) {
             AuctionState.click();
             Online.openDownloads();
@@ -2001,6 +2028,11 @@ public class AuctionScreen extends Screen {
     }
 
     private boolean setupClick(double mx, double my) {
+        // the giveaway page has no item grid: its boxes (Prize, Open for) sit where the grid would be, so a click there
+        // must reach them (it used to be eaten as a grid click - you couldn't type in them)
+        if (Edition.PRO && st.config.gwTab) {
+            return false;
+        }
         if (st.config.ftpTab) {
             if (mx >= x0 && mx < x0 + CW && my >= checkY - 1 && my < checkY + 10) {
                 st.config.ftpCopyPay = !st.config.ftpCopyPay;

@@ -59,7 +59,11 @@ public final class Style {
     }
 
     public static Look look() {
-        return Edition.LOOKS ? GambleState.INSTANCE.look : Look.CLASSIC;
+        if (!Edition.LOOKS) {
+            return Look.CLASSIC; // Free: always the Classic look
+        }
+        Look l = GambleState.INSTANCE.look;
+        return l == null || l.retired() ? Look.PLAIN : l;
     }
 
     public static boolean modern() {
@@ -173,8 +177,40 @@ public final class Style {
         }
     }
 
+    // Default (Plain): a flat box with a 1px line round it; its corners follow the Corners setting (square at "Sharp")
+    private static void plainBox(GuiGraphicsExtractor g, int x, int y, int w, int h, int fill, int line) {
+        round(g, x, y, w, h, 2, line);
+        round(g, x + 1, y + 1, w - 2, h - 2, 1, fill);
+    }
+
+    // the corner radius round() really uses for r at this size
+    private static int scaledR(int r, int w, int h) {
+        return Math.max(0, Math.min(Math.round(r * corners), Math.min(w, h) / 2));
+    }
+
+    // light text keeps Minecraft's drop shadow; dark text (on a light button) doesn't, or it looks doubled
+    private static boolean light(int color) {
+        int r = (color >> 16) & 255, gr = (color >> 8) & 255, b = color & 255;
+        return r * 299 + gr * 587 + b * 114 > 100_000;
+    }
+
+    // black or white text, whichever reads on that fill
+    private static int textOn(int fill) {
+        int r = (fill >> 16) & 255, gr = (fill >> 8) & 255, b = fill & 255;
+        return r * 299 + gr * 587 + b * 114 > 150_000 ? 0xFF111111 : WHITE;
+    }
+
     public static void panel(GuiGraphicsExtractor g, int x, int y, int w, int h, int alpha) {
         switch (look()) {
+            case PLAIN -> { // flat, one accent line along the top; the opacity slider and Corners apply
+                round(g, x - 1, y - 1, w + 2, h + 2, 4, fade(0xFF0C0C0C, alpha));
+                round(g, x, y, w, h, 3, Colors.withAlpha(Colors.BG, alpha));
+                int r = scaledR(3, w, h);
+                for (int row = 0; row < 2; row++) {
+                    int in = rowInset(h, r, row);
+                    g.fill(x + in, y + row, x + w - in, y + row + 1, Colors.ACCENT_A);
+                }
+            }
             case SLEEK -> {
                 Smooth.shadow(g, x, y, w, h, 10, 9, fade(0x8C000000, alpha));
                 Smooth.rect(g, x, y, w, h, 10, Colors.withAlpha(Colors.BG, alpha * 15 / 16));
@@ -222,6 +258,7 @@ public final class Style {
         switch (look()) {
             case SLEEK -> Smooth.hairline(g, x, y, w, fade(0x26FFFFFF, alpha), true);
             case CLASSIC, MINIMAL -> g.fill(x, y, x + w, y + 1, Colors.withAlpha(Colors.BORDER, alpha));
+            case PLAIN -> g.fill(x, y, x + w, y + 1, Colors.BORDER);
             case GLASS -> g.fill(x, y, x + w, y + 1, fade(0x40FFFFFF, alpha));
             case LIQUID -> glint(g, x, y, w, fade(0x90FFFFFF, alpha));
             case ROUNDED, NEON -> {
@@ -239,6 +276,8 @@ public final class Style {
 
     public static void slot(GuiGraphicsExtractor g, int x, int y, int s, int alpha, boolean selected, boolean hover) {
         switch (look()) {
+            case PLAIN -> plainBox(g, x + 1, y + 1, s - 2, s - 2, hover && !selected ? 0xFF242424 : Colors.SLOT_BG,
+                    selected ? Colors.ACCENT_A : hover ? 0xFF6A6A6A : 0xFF2E2E2E);
             case SLEEK -> {
                 int bg = selected ? Colors.withAlpha(Colors.ACCENT_A, 0x2E) : hover ? 0x1CFFFFFF : 0x0DFFFFFF;
                 Smooth.rect(g, x + 1, y + 1, s - 2, s - 2, 5, bg);
@@ -301,6 +340,7 @@ public final class Style {
 
     public static void itemFrame(GuiGraphicsExtractor g, int x, int y, int s) {
         switch (look()) {
+            case PLAIN -> plainBox(g, x, y, s, s, Colors.FIELD_BG, Colors.BORDER);
             case SLEEK -> {
                 Smooth.rect(g, x, y, s, s, 9, 0x10FFFFFF);
                 Smooth.ring(g, x, y, s, s, 9, 1, 0x26FFFFFF);
@@ -336,6 +376,12 @@ public final class Style {
         boolean go = color == Colors.BTN_GO, stop = color == Colors.BTN_STOP;
         int text = enabled ? WHITE : 0xFF666677;
         switch (look()) {
+            case PLAIN -> {
+                int fill = !enabled ? Colors.BTN_OFF : go ? Colors.ACCENT_A : stop ? 0xFFB8443A : Colors.BTN;
+                if (enabled && hover) fill = Colors.lighten(fill);
+                plainBox(g, x, y, w, h, fill, enabled && hover && !go && !stop ? 0xFF6A6A6A : 0xFF0C0C0C);
+                text = !enabled ? 0xFF707070 : textOn(fill);
+            }
             case SLEEK -> {
                 float r = Math.min(h / 2.0F, 9);
                 int fill;
@@ -451,19 +497,19 @@ public final class Style {
             g.pose().pushMatrix();
             g.pose().translate(x + (w - tw * s) / 2, y + (h - 8 * s) / 2);
             g.pose().scale(s, s);
-            Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow);
+            Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow && light(color));
             g.pose().popMatrix();
             return;
         }
         if (tw <= w - 4) {
-            Txt.center(g, font, label, x + w / 2, y + (h - 8) / 2, color);
+            Txt.draw(g, font, label, x + (w - tw) / 2, y + (h - 8) / 2, color, light(color));
             return;
         }
         float s = Math.max(0.6F, (float) Math.floor((w - 4) / (float) tw * 10) / 10); // 10% steps: fewer text sizes
         g.pose().pushMatrix();
         g.pose().translate(x + (w - tw * s) / 2, y + (h - 8 * s) / 2);
         g.pose().scale(s, s);
-        Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow);
+        Txt.draw(g, font, Txt.cut(font, label, (int) ((w - 4) / s)), 0, 0, color, shadow && light(color));
         g.pose().popMatrix();
     }
 
@@ -475,6 +521,12 @@ public final class Style {
 
     public static void check(GuiGraphicsExtractor g, Font font, int x, int y, boolean checked, String label) {
         switch (look()) {
+            case PLAIN -> {
+                plainBox(g, x, y, 9, 9, Colors.FIELD_BG, checked ? Colors.ACCENT_A : Colors.FIELD_BORDER);
+                if (checked) {
+                    g.fill(x + 2, y + 2, x + 7, y + 7, Colors.ACCENT_A);
+                }
+            }
             case SLEEK -> {
                 if (checked) {
                     Smooth.rect(g, x, y, 9, 9, 3, Colors.ACCENT_A);
@@ -535,6 +587,7 @@ public final class Style {
 
     public static void box(GuiGraphicsExtractor g, int x, int y, int w, int h) {
         switch (look()) {
+            case PLAIN -> plainBox(g, x, y, w, h, Colors.FIELD_BG, 0xFF2E2E2E);
             case SLEEK -> {
                 Smooth.rect(g, x, y, w, h, 7, 0x38000000);
                 Smooth.ring(g, x, y, w, h, 7, 1, 0x17FFFFFF);
@@ -566,6 +619,7 @@ public final class Style {
     // frame for the borderless EditBoxes used by every look except Classic
     public static void field(GuiGraphicsExtractor g, int x, int y, int w, int h, boolean focused) {
         switch (look()) {
+            case PLAIN -> plainBox(g, x, y, w, h, Colors.FIELD_BG, focused ? Colors.ACCENT_A : Colors.FIELD_BORDER);
             case SLEEK -> {
                 Smooth.rect(g, x, y, w, h, 6, focused ? 0x1AFFFFFF : 0x10FFFFFF);
                 Smooth.ring(g, x, y, w, h, 6, 1, focused ? Colors.ACCENT_A : 0x24FFFFFF);
@@ -601,6 +655,10 @@ public final class Style {
 
     public static void scrollbar(GuiGraphicsExtractor g, int x, int y, int h, int thumbTop, int thumbH) {
         switch (look()) {
+            case PLAIN -> {
+                g.fill(x, y, x + 4, y + h, Colors.FIELD_BG);
+                g.fill(x, y + thumbTop, x + 4, y + thumbTop + thumbH, 0xFF5A5A5A);
+            }
             case SLEEK -> {
                 Smooth.rect(g, x + 1, y, 2, h, 1, 0x12FFFFFF);
                 Smooth.rect(g, x + 0.5F, y + thumbTop, 3, thumbH, 1.5F, 0x8CFFFFFF);
@@ -632,6 +690,11 @@ public final class Style {
     public static void slider(GuiGraphicsExtractor g, int x, int y, float value) {
         int knob = x + Math.round(value * 56);
         switch (look()) {
+            case PLAIN -> {
+                g.fill(x, y + 3, x + 60, y + 5, Colors.FIELD_BG);
+                g.fill(x, y + 3, knob + 2, y + 5, Colors.ACCENT_A);
+                plainBox(g, knob, y, 5, 8, 0xFFD0D0D0, 0xFF0C0C0C);
+            }
             case SLEEK -> {
                 Smooth.rect(g, x, y + 3, 60, 2, 1, 0x24FFFFFF);
                 Smooth.rect(g, x, y + 3, knob - x + 3, 2, 1, Colors.ACCENT_A);
@@ -669,6 +732,7 @@ public final class Style {
     public static int pill(GuiGraphicsExtractor g, Font font, int x, int y, String text, int color) {
         int w = Txt.width(font, text) + 6;
         switch (look()) {
+            case PLAIN -> g.fill(x, y, x + w, y + 10, Colors.darken(color, 0.65F));
             case SLEEK -> {
                 Smooth.rect(g, x, y, w, 10, 5, Colors.withAlpha(color, 0x2A));
                 Smooth.ring(g, x, y, w, 10, 5, 1, Colors.withAlpha(color, 0x70));
@@ -693,6 +757,10 @@ public final class Style {
 
     public static void highlight(GuiGraphicsExtractor g, int x, int y, int w, int h, int alpha) {
         switch (look()) {
+            case PLAIN -> {
+                g.fill(x, y, x + w, y + h, 0xFF2A2A2A);
+                g.fill(x, y, x + 2, y + h, Colors.ACCENT_A);
+            }
             case SLEEK -> {
                 Smooth.rect(g, x, y, w, h, 8, fade(0x12FFFFFF, alpha));
                 Smooth.ring(g, x, y, w, h, 8, 1, Colors.withAlpha(Colors.ACCENT_A, Math.min(alpha, 0x90)));

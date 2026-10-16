@@ -7,9 +7,12 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 
+import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Set;
@@ -189,12 +192,65 @@ public final class ZzMenu {
         return p;
     }
 
+    // The logo is read straight from our own jar, not from Minecraft's resources: without Fabric API those never load
+    // and it showed as the pink and black "missing texture" square. It's shrunk (averaging, like a picture viewer) to the
+    // exact pixels it's shown at, so it stays smooth without needing a blurry texture setting.
+    private static final Identifier LOGO_BAKED = Identifier.fromNamespaceAndPath("auctionoverlay", "zzmods_logo_baked");
+    private static NativeImage logoSource;
+    private static boolean logoFailed;
+    private static int logoPW, logoPH;
+
+    private static boolean bakeLogo(int pw, int ph) {
+        if (logoPW == pw && logoPH == ph) return true;
+        if (logoFailed) return false;
+        try {
+            if (logoSource == null) {
+                try (InputStream in = ZzMenu.class.getResourceAsStream("/assets/auctionoverlay/textures/gui/zzmods_logo.png")) {
+                    if (in == null) {
+                        logoFailed = true;
+                        return false;
+                    }
+                    logoSource = NativeImage.read(in);
+                }
+            }
+            int sw = logoSource.getWidth(), sh = logoSource.getHeight();
+            NativeImage out = new NativeImage(pw, ph, true);
+            for (int y = 0; y < ph; y++) {
+                int y0 = y * sh / ph, y1 = Math.max(y0 + 1, (y + 1) * sh / ph);
+                for (int x = 0; x < pw; x++) {
+                    int x0 = x * sw / pw, x1 = Math.max(x0 + 1, (x + 1) * sw / pw);
+                    long a = 0, r = 0, gr = 0, b = 0, n = 0;
+                    for (int yy = y0; yy < y1; yy++) {
+                        for (int xx = x0; xx < x1; xx++) {
+                            int c = logoSource.getPixel(xx, yy), ca = c >>> 24;
+                            a += ca;
+                            r += ((c >> 16) & 255) * ca;
+                            gr += ((c >> 8) & 255) * ca;
+                            b += (c & 255) * ca;
+                            n++;
+                        }
+                    }
+                    int oa = (int) (a / n);
+                    int c = a == 0 ? 0 : oa << 24 | (int) (r / a) << 16 | (int) (gr / a) << 8 | (int) (b / a);
+                    out.setPixel(x, y, c);
+                }
+            }
+            // registering under the same name replaces (and closes) the previous size
+            Minecraft.getInstance().getTextureManager().register(LOGO_BAKED, new DynamicTexture(() -> "zzmods logo", out));
+            logoPW = pw;
+            logoPH = ph;
+            return true;
+        } catch (Exception e) {
+            logoFailed = true;
+            return false;
+        }
+    }
+
     private static void logo(GuiGraphicsExtractor g, int x, int y, int w, int h, int color) {
-        g.pose().pushMatrix();
-        g.pose().translate(x, y);
-        g.pose().scale(w / (float) LOGO_TEX_W, h / (float) LOGO_TEX_H);
-        g.blit(RenderPipelines.GUI_TEXTURED, LOGO, 0, 0, 0.0F, 0.0F, LOGO_TEX_W, LOGO_TEX_H, LOGO_TEX_W, LOGO_TEX_H, color);
-        g.pose().popMatrix();
+        double gs = Minecraft.getInstance().getWindow().getGuiScale();
+        int pw = Math.max(1, (int) Math.round(w * gs)), ph = Math.max(1, (int) Math.round(h * gs));
+        if (!bakeLogo(pw, ph)) return;
+        g.blit(RenderPipelines.GUI_TEXTURED, LOGO_BAKED, x, y, 0.0F, 0.0F, w, h, pw, ph, pw, ph, color);
     }
 
     // Essential's button: black outline, light top and left edge, darker right edge and bottom

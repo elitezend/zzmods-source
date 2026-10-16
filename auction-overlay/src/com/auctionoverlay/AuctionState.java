@@ -48,8 +48,8 @@ public final class AuctionState {
         public int panelY = -1;
         public float scale = DEFAULT_SCALE; // new installs start smaller; Ctrl + / - changes it
         public boolean roundedLook = true; // before 1.0.5 this was the only look switch
-        // default look: Sleek with the Ice / White accents (Basic and Premium - Basic copies that never picked a look get it too)
-        public String look = Edition.SLEEK ? "SLEEK" : null;
+        // default look: Default (flat, square, solid) with the Ice / White accent
+        public String look = "PLAIN";
         public int accent = Edition.LOOKS ? 5 : 0;
         public String title = "";
         public int toggleKey = Edition.DEFAULT_TOGGLE_KEY;

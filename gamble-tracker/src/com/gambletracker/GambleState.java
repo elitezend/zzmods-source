@@ -52,6 +52,8 @@ public final class GambleState {
     public boolean sounds = true;
     public HudSpot hud = HudSpot.RIGHT;
     public int heightPct = 0; // 0 = top of the screen, 100 = bottom
+    // the card sits right under the server's scoreboard (DonutSMP's stats on the right) until you move it yourself
+    public boolean cardAuto = true;
     public boolean nextFirstOnly = true;
     public boolean showRefunds = true;
     public boolean copyPay = true;
@@ -59,7 +61,13 @@ public final class GambleState {
     public int payoutPct = 200;
     public int rows = 5;
     // default look: Sleek with the Ice / White accents (Premium)
-    public Look look = Edition.LOOKS ? Look.SLEEK : Look.ROUNDED;
+    public Look look = Look.PLAIN; // "Default"
+    // Clean: the extra bits you can switch off (Essentials only = all of them off)
+    public boolean panelHint = true;   // "Right Alt: close" at the top of the panel (messages still show)
+    public boolean nextHint = true;    // "Next player: tap ..." under Tracking payments
+    public boolean cardKeys = true;    // the key hints at the bottom of the card (messages still show)
+    public boolean cardLink = true;    // the Discord link at the bottom of the card
+    public boolean cardLabels = true;  // the small "outside range" label by REFUND
     public int accent = Edition.LOOKS ? 5 : 0;
     public int hueA = 270;
     public int hueB = 190;
@@ -67,6 +75,15 @@ public final class GambleState {
     public boolean textShadow;
     public int titleColor;
     public String title = "";
+
+    // Clean: every extra bit is off
+    public boolean essentialsOnly() {
+        return !(panelHint || nextHint || cardKeys || cardLink || cardLabels);
+    }
+
+    public void setEssentialsOnly(boolean on) {
+        panelHint = nextHint = cardKeys = cardLink = cardLabels = !on;
+    }
     public int opacity = 85;
     public float scale = 1.0F;
     // GLFW key codes, -1 = not set, MOUSE + n = mouse button n (2 = middle)
@@ -204,12 +221,37 @@ public final class GambleState {
         }
     }
 
+    // the card's size: starts at 70% (100% was too big)
+    public static final float CARD_SCALE = 0.7F;
+
     public float scale() {
-        return Math.max(0.5F, Math.min(2.0F, scale <= 0 ? 1.0F : scale));
+        return Math.max(0.5F, Math.min(2.0F, scale <= 0 ? CARD_SCALE : scale));
+    }
+
+    // every key, for the card and the Queue tab: "Next: Not set   Pay: Not set" / "Hide: Right Control   Panel: Right Alt"
+    public String bindsLine1() {
+        return "Next: " + keyName(nextKey) + (Edition.PAYOUTS ? "   Pay: " + keyName(payKey) : "");
+    }
+
+    public String bindsLine2() {
+        return "Hide: " + keyName(openKey) + "   Panel: " + keyName(settingsKey);
+    }
+
+    // the panel's own size (the card keeps "Size"): starts at 60% like the Auction Overlay's panel
+    public static final float PANEL_SCALE = 0.6F;
+    public float panelScale = PANEL_SCALE;
+
+    public float panelScale() {
+        return Math.max(0.4F, Math.min(1.5F, panelScale <= 0 ? PANEL_SCALE : panelScale));
+    }
+
+    public void adjustPanelScale(int dir) {
+        panelScale = dir == 0 ? PANEL_SCALE : Math.max(0.4F, Math.min(1.5F, Math.round((panelScale() + 0.1F * dir) * 10) / 10.0F));
+        save();
     }
 
     public void adjustScale(int dir) {
-        scale = dir == 0 ? 1.0F : Math.max(0.5F, Math.min(2.0F, Math.round((scale() + 0.1F * dir) * 10) / 10.0F));
+        scale = dir == 0 ? CARD_SCALE : Math.max(0.5F, Math.min(2.0F, Math.round((scale() + 0.1F * dir) * 10) / 10.0F));
         save();
     }
 
@@ -474,7 +516,12 @@ public final class GambleState {
         tutorialDone = bool(p, "tutorialDone", false);
         showRefunds = bool(p, "showRefunds", true);
         payKeySends = bool(p, "payKeySends", true);
-        look = Look.parse(p.getProperty("look"), Edition.LOOKS ? Look.SLEEK : Look.ROUNDED);
+        look = Look.parse(p.getProperty("look"), Look.PLAIN);
+        panelHint = bool(p, "panelHint", true);
+        nextHint = bool(p, "nextHint", true);
+        cardKeys = bool(p, "cardKeys", true);
+        cardLink = bool(p, "cardLink", true);
+        cardLabels = bool(p, "cardLabels", true);
         title = p.getProperty("title", "");
         openKey = num(p, "openKey", 345);
         settingsKey = num(p, "settingsKeyCode", 346);
@@ -489,13 +536,21 @@ public final class GambleState {
         titleColor = num(p, "titleColor", 0);
         textShadow = bool(p, "textShadow", false);
         opacity = Math.max(35, Math.min(100, num(p, "opacity", 85)));
+        cardAuto = bool(p, "cardAuto", true);
         if (p.containsKey("heightPct")) {
             heightPct = Math.max(0, Math.min(100, num(p, "heightPct", 0)));
         }
         try {
-            scale = Float.parseFloat(p.getProperty("scale", "1.0"));
+            scale = Float.parseFloat(p.getProperty("scale", String.valueOf(CARD_SCALE)));
         } catch (NumberFormatException e) {
-            scale = 1.0F;
+            scale = CARD_SCALE;
+        }
+        // 2.0.3: the card starts smaller - an untouched 100% (the old default) becomes 70%, once
+        if (!p.containsKey("cardScaleV2") && scale == 1.0F) scale = CARD_SCALE;
+        try {
+            panelScale = Float.parseFloat(p.getProperty("panelScale", String.valueOf(PANEL_SCALE)));
+        } catch (NumberFormatException e) {
+            panelScale = PANEL_SCALE;
         }
         applyTheme();
 
@@ -536,6 +591,7 @@ public final class GambleState {
         p.setProperty("sounds", String.valueOf(sounds));
         p.setProperty("hud", hud.name());
         p.setProperty("heightPct", String.valueOf(heightPct));
+        p.setProperty("cardAuto", String.valueOf(cardAuto));
         p.setProperty("nextFirstOnly", String.valueOf(nextFirstOnly));
         p.setProperty("copyPay", String.valueOf(copyPay));
         p.setProperty("tutorialDone", String.valueOf(tutorialDone));
@@ -549,9 +605,16 @@ public final class GambleState {
         p.setProperty("corners", String.valueOf(corners));
         p.setProperty("titleColor", String.valueOf(titleColor));
         p.setProperty("textShadow", String.valueOf(textShadow));
+        p.setProperty("panelHint", String.valueOf(panelHint));
+        p.setProperty("nextHint", String.valueOf(nextHint));
+        p.setProperty("cardKeys", String.valueOf(cardKeys));
+        p.setProperty("cardLink", String.valueOf(cardLink));
+        p.setProperty("cardLabels", String.valueOf(cardLabels));
         p.setProperty("title", title == null ? "" : title);
         p.setProperty("opacity", String.valueOf(opacity));
         p.setProperty("scale", String.valueOf(scale()));
+        p.setProperty("cardScaleV2", "true");
+        p.setProperty("panelScale", String.valueOf(panelScale()));
         p.setProperty("openKey", String.valueOf(openKey));
         p.setProperty("settingsKeyCode", String.valueOf(settingsKey));
         p.setProperty("nextKey", String.valueOf(nextKey));

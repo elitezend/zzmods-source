@@ -28,7 +28,7 @@ public class GambleScreen extends Screen {
 
     // the tabs, in order; "keys" is called Keys & pay when the edition has payouts
     enum Tab {
-        QUEUE("Queue"), LOOK("Look"), CARD("Card"), KEYS("Keys"), ABOUT("About");
+        QUEUE("Queue"), LOOK("Look"), CARD("Card"), CLEAN("Clean"), KEYS("Keys"), ABOUT("About");
 
         final String label;
 
@@ -70,7 +70,7 @@ public class GambleScreen extends Screen {
     private int listY, refundY, buttonsY, checkY, ignoredY, mainEnd;
     private int setBottom;
     private boolean moreBelow, titleShown;
-    private int sizeRowY, heightX, heightY, hueX, hueAY, hueBY, opX, opY;
+    private int sizeRowY, panelSizeY, heightX, heightY, hueX, hueAY, hueBY, opX, opY;
     private int draggingHue;
     private boolean draggingOpacity, draggingHeight;
 
@@ -130,15 +130,22 @@ public class GambleScreen extends Screen {
     private void layout() {
         String want = GambleTour.wantTab();
         if (want != null && Tab.named(want) != null) tab = Tab.named(want); // the tour shows the tab it talks about
-        scale = st.scale();
+        scale = st.panelScale();
         if (W * scale > width - 8) {
-            scale = Math.max(0.5F, (width - 8) / (float) W); // too wide for this window: shrink it
+            scale = Math.max(0.4F, (width - 8) / (float) W); // too wide for this window: shrink it
         }
         int vw = (int) (width / scale);
         vh = (int) (height / scale);
         px = Math.max(0, (vw - W) / 2);
         py = 0;
         layoutAt();
+        if (ph * scale > height - 4) { // too tall for this window: shrink it too
+            scale = Math.max(0.4F, (height - 4) / (float) ph);
+            vw = (int) (width / scale);
+            vh = (int) (height / scale);
+            px = Math.max(0, (vw - W) / 2);
+            layoutAt();
+        }
         py = Math.max(0, (vh - ph) / 2);
         layoutAt();
     }
@@ -171,7 +178,7 @@ public class GambleScreen extends Screen {
         show(maxBox, tab == Tab.QUEUE);
         show(titleBox, false);
         titleShown = false;
-        sizeRowY = heightY = hueAY = hueBY = opY = -100;
+        sizeRowY = panelSizeY = heightY = hueAY = hueBY = opY = -100;
         if (tab == Tab.QUEUE) {
             layoutMain();
             ph = mainEnd - py + 6;
@@ -236,7 +243,7 @@ public class GambleScreen extends Screen {
         buttons.add(new Btn(x0 + CW - third, y, third, 18, "Clear queue", Colors.BTN_STOP, !queue.isEmpty(), () -> st.clearQueue("clear button")));
         y += 23;
         checkY = y;
-        y += 23;
+        y += st.nextHint ? 34 : 13;
         ignoredY = y;
         if (!st.lastUnmatched.isEmpty()) {
             y += 21;
@@ -268,6 +275,17 @@ public class GambleScreen extends Screen {
                     opX = scx + 10;
                     opY = y + 3;
                 }));
+                srows.add(new SRow("Panel size", false, y -> {
+                    panelSizeY = y;
+                    buttons.add(new Btn(scx, y, 16, 13, "-", Colors.BTN, true, () -> {
+                        st.adjustPanelScale(-1);
+                        rebuildWidgets();
+                    }));
+                    buttons.add(new Btn(scx + 64, y, 16, 13, "+", Colors.BTN, true, () -> {
+                        st.adjustPanelScale(1);
+                        rebuildWidgets();
+                    }));
+                }));
                 if (Edition.LOOKS) {
                     styleRows();
                 } else {
@@ -275,6 +293,7 @@ public class GambleScreen extends Screen {
                 }
             }
             case CARD -> cardRows();
+            case CLEAN -> cleanRows();
             case KEYS -> keyRows();
             case ABOUT -> aboutRows();
             default -> {
@@ -352,6 +371,7 @@ public class GambleScreen extends Screen {
     private void cardRows() {
         choice("Card side", st.hud.label, true, () ->
                 st.hud = GambleState.HudSpot.values()[(st.hud.ordinal() + 1) % GambleState.HudSpot.values().length]);
+        choice("Card position", st.cardAuto ? "Under scoreboard" : "Custom", true, () -> st.cardAuto = !st.cardAuto);
         srows.add(new SRow("Card up / down", false, y -> {
             heightX = scx + 10;
             heightY = y + 3;
@@ -364,6 +384,21 @@ public class GambleScreen extends Screen {
         choice("Players on card", String.valueOf(st.rows), true, () -> st.rows = cycle(GambleState.ROW_CHOICES, st.rows));
         choice("Show refunds", onOff(st.showRefunds), true, () -> st.showRefunds = !st.showRefunds);
         choice("Sounds", onOff(st.sounds), true, () -> st.sounds = !st.sounds);
+    }
+
+    // Clean: switch off everything that isn't needed to run the queue
+    private void cleanRows() {
+        choice("Essentials only", onOff(st.essentialsOnly()), true, () -> {
+            st.setEssentialsOnly(!st.essentialsOnly());
+            rebuildWidgets();
+        });
+        srows.add(new SRow("Or pick what to show:", false, null));
+        choice("Panel close hint", onOff(st.panelHint), true, () -> st.panelHint = !st.panelHint);
+        choice("Keys on the panel", onOff(st.nextHint), true, () -> st.nextHint = !st.nextHint);
+        choice("Keys on the card", onOff(st.cardKeys), true, () -> st.cardKeys = !st.cardKeys);
+        choice("Card Discord link", onOff(st.cardLink), true, () -> st.cardLink = !st.cardLink);
+        choice("Refund label", onOff(st.cardLabels), true, () -> st.cardLabels = !st.cardLabels);
+        srows.add(new SRow("Messages and updates always show.", false, null));
     }
 
     private void keyRows() {
@@ -397,13 +432,14 @@ public class GambleScreen extends Screen {
             st.applyTheme();
         });
         choice("Reset the look", "Reset", true, () -> {
-            st.look = Edition.LOOKS ? Look.SLEEK : Look.ROUNDED;
+            st.look = Look.PLAIN;
             st.accent = Edition.LOOKS ? 5 : 0;
             st.corners = 2;
             st.titleColor = 0;
             st.textShadow = false;
             st.opacity = 85;
             st.scale = 1.0F;
+            st.panelScale = GambleState.PANEL_SCALE;
             st.applyTheme();
             rebuildWidgets();
         });
@@ -497,7 +533,8 @@ public class GambleScreen extends Screen {
 
         String toast = st.toast();
         String update = GambleOnline.update();
-        String hint = toast != null ? toast : update != null ? "Update " + update + " is out (About)" : GambleState.keyName(st.settingsKey) + ": close";
+        String hint = toast != null ? toast : update != null ? "Update " + update + " is out (About)"
+                : st.panelHint ? GambleState.keyName(st.settingsKey) + ": close" : "";
         int hintColor = toast != null ? st.toastColor() : update != null ? Colors.YELLOW : Colors.MUTED;
         hint = Txt.cut(font, hint, Math.max(0, W - 2 * PAD - 34 - Txt.width(font, Style.title())));
         Txt.draw(g, font, Style.title(), x0, py + 6, Colors.TITLE, Style.shadow);
@@ -585,7 +622,10 @@ public class GambleScreen extends Screen {
         Style.check(g, font, x0, checkY, st.tracking, "Tracking payments");
         String next = st.nextKey < 0 ? "Next player key: not set (Keys tab)"
                 : "Next player: tap " + GambleState.keyName(st.nextKey) + (st.nextFirstOnly ? "" : " (clears everyone)");
-        Txt.draw(g, font, Txt.cut(font, next, CW - 13), x0 + 13, checkY + 11, st.nextKey < 0 ? Colors.YELLOW : Colors.MUTED, Style.shadow);
+        if (st.nextHint) { // every key (Keys tab changes them); "Not set" in yellow
+            Txt.draw(g, font, Txt.cut(font, st.bindsLine1(), CW - 13), x0 + 13, checkY + 11, st.nextKey < 0 ? Colors.YELLOW : Colors.MUTED, Style.shadow);
+            Txt.draw(g, font, Txt.cut(font, st.bindsLine2(), CW - 13), x0 + 13, checkY + 21, Colors.MUTED, Style.shadow);
+        }
 
         if (!st.lastUnmatched.isEmpty()) {
             Txt.draw(g, font, Txt.cut(font, "Ignored (not an exact payment message):", CW), x0, ignoredY, Colors.RED, Style.shadow);
@@ -616,6 +656,9 @@ public class GambleScreen extends Screen {
         }
         if (sizeRowY >= 0) {
             Txt.center(g, font, Math.round(st.scale() * 100) + "%", scx + 40, sizeRowY + 3, Colors.TEXT);
+        }
+        if (panelSizeY >= 0) {
+            Txt.center(g, font, Math.round(st.panelScale() * 100) + "%", scx + 40, panelSizeY + 3, Colors.TEXT);
         }
         if (heightY >= 0) {
             Txt.draw(g, font, "Up", heightX - 12, heightY, Colors.MUTED, Style.shadow);
@@ -670,6 +713,26 @@ public class GambleScreen extends Screen {
                 st.click();
                 b.action().run();
                 return true;
+            }
+        }
+        // clicking a setting's name does what its button does (rows with one button)
+        if (tab != Tab.QUEUE && mx >= x0 && mx < x0 + CW) {
+            for (Shown s : shown) {
+                if (s.row().header() || s.row().place() == null || my < s.y() - 1 || my >= s.y() + 14) continue;
+                Btn only = null;
+                int n = 0;
+                for (Btn b : buttons) {
+                    if (b.y() == s.y()) {
+                        n++;
+                        only = b;
+                    }
+                }
+                if (n == 1 && only.enabled()) {
+                    st.click();
+                    only.action().run();
+                    return true;
+                }
+                break;
             }
         }
         if (opY >= 0 && my >= opY - 2 && my < opY + 10 && mx >= opX - 3 && mx < opX + 63) {
@@ -813,6 +876,7 @@ public class GambleScreen extends Screen {
 
     private void setHeight(double mx) {
         st.heightPct = (int) Math.round(Math.max(0, Math.min(1, (mx - heightX) / 60.0)) * 100);
+        st.cardAuto = false; // moved by hand: stays where you put it
     }
 
     private void setOpacity(double mx) {

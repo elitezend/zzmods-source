@@ -26,7 +26,7 @@ public final class Colors {
     public static final int BTN_STOP = 0xFFA23B3B;
 
     static {
-        apply(Edition.LOOKS ? Look.ROUNDED : Look.CLASSIC, 0, 270, 190);
+        apply(Look.PLAIN, 0, 270, 190);
     }
 
     private Colors() {}
@@ -37,8 +37,9 @@ public final class Colors {
     }
 
     public static void apply(Look look, int accent, int hueA, int hueB) {
-        if (!Edition.LOOKS) {
-            solid(Math.floorMod(accent, SOLID.length));
+        if (!Edition.LOOKS) { // Free: the Classic look with one solid accent colour
+            classic();
+            ACCENT_A = ACCENT_B = SOLID[Math.floorMod(accent, SOLID.length)];
             return;
         }
         int i = Math.floorMod(accent, ACCENT_NAMES.length);
@@ -57,6 +58,7 @@ public final class Colors {
             case NEON -> neon();
             case MINIMAL -> minimal();
             case SLEEK -> sleek();
+            case PLAIN -> plain();
         }
     }
 
@@ -119,6 +121,13 @@ public final class Colors {
     private static void minimal() {
         set(0xFF18181B, 0xFF27272A, 0xFFF4F4F5, 0xFF8B8B94, 0xFF22C55E, 0xFFEAB308, 0xFFFACC15, 0xFFEF4444, 0xFF38BDF8,
                 0xFF27272A, 0xFF3F3F46, 0xFF27272A, 0xFF1F1F22, 0xFF232326, 0xFF3F3F46, 0xFFF4F4F5, 0xFFFFFFFF);
+    }
+
+    // flat and opaque: dark grey, one solid accent colour (the first of the pair), nothing see-through
+    private static void plain() {
+        ACCENT_B = ACCENT_A;
+        set(0xFF202020, 0xFF3C3C3C, 0xFFE8E8E8, 0xFF9C9C9C, 0xFF6CC24A, 0xFFE0B040, 0xFFF0D060, 0xFFE05A4F, 0xFF5FB8D0,
+                0xFF151515, 0xFF4A4A4A, 0xFF333333, 0xFF2A2A2A, 0xFF181818, 0xFF3C3C3C, 0xFFFFFFFF, 0xFFFFFFFF);
     }
 
     // graphite glass, hairline borders, soft colours

@@ -26,7 +26,7 @@ public final class Colors {
     public static final int BTN_STOP = 0xFFA23B3B;
 
     static {
-        apply(Edition.LOOKS ? Look.ROUNDED : Look.CLASSIC, 0, 270, 190);
+        apply(Look.PLAIN, 0, 270, 190);
     }
 
     private Colors() {}
@@ -37,8 +37,9 @@ public final class Colors {
     }
 
     public static void apply(Look look, int accent, int hueA, int hueB) {
-        if (!Edition.LOOKS) {
-            solid(Math.floorMod(accent, SOLID.length));
+        if (!Edition.LOOKS) { // Free: the Classic look with one solid accent colour
+            classic();
+            ACCENT_A = ACCENT_B = SOLID[Math.floorMod(accent, SOLID.length)];
             return;
         }
         int i = Math.floorMod(accent, ACCENT_NAMES.length);

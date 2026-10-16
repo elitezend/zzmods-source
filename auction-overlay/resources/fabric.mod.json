@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "auctionoverlay",
-  "version": "2.0.3",
+  "version": "2.1.0",
   "name": "Auction Overlay",
   "description": "In-game auction panel for auctioning items to viewers. Tap Right Shift to open or hide it.",
   "authors": ["rcandmorebash"],

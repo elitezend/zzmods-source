@@ -3,6 +3,8 @@
 The code of **Auction Overlay** and **Gamble Tracker**, the Fabric mods from [zzmods.com](https://zzmods.netlify.app),
 published so you can see exactly what they do before you install them.
 
+This is the code of **Auction Overlay 2.1.0** and **Gamble Tracker 2.1.0**.
+
 This is **source-available, not open source**: you can read it, but you can't copy, build or share it
 (see [LICENSE](LICENSE)). Get the mods from zzmods.com.
 

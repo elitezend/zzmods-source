@@ -57,11 +57,16 @@ public final class GambleHud {
         int refundRows = Math.min(refunds.size(), 3);
         int h = 64 + waiting * 11 + (more > 0 ? 10 : 0) + 4
                 + (refunds.isEmpty() ? 0 : 16 + refundRows * 10 + (refunds.size() > refundRows ? 10 : 0))
-                + 26;
+                + footerHeight(st, chatOpen);
 
         int vw = (int) (g.guiWidth() / scale), vh = (int) (g.guiHeight() / scale);
         int x = st.hud == GambleState.HudSpot.LEFT ? 6 : vw - W - 6;
         int y = 6 + Math.max(0, vh - h - 12) * st.heightPct / 100;
+        if (st.cardAuto) { // right under the scoreboard on the right (DonutSMP's stats), else the top
+            int under = st.hud == GambleState.HudSpot.RIGHT ? sidebarBottom(mc, g.guiHeight()) : -1;
+            y = under < 0 ? 6 : Math.round((under + 4) / scale);
+            y = Math.max(6, Math.min(y, vh - h - 6));
+        }
         int gx = x + W - PAD - GEAR, gy = y + 4;
         gearRect = new float[]{gx * scale, gy * scale, GEAR * scale};
         double mx = mc.mouseHandler.getScaledXPos(mc.getWindow()), my = mc.mouseHandler.getScaledYPos(mc.getWindow());
@@ -72,6 +77,21 @@ public final class GambleHud {
         Style.button(g, font, gx, gy, GEAR, GEAR, Style.ICON_GEAR, chatOpen ? Colors.BTN_GO : Colors.BTN, true,
                 chatOpen && gearContains(mx, my));
         g.pose().popMatrix();
+    }
+
+    // where Minecraft's scoreboard sidebar ends (gui pixels), or -1 when there's none. Minecraft centres it on the
+    // right: its bottom is half the screen height plus a third of its lines' height.
+    static int sidebarBottom(Minecraft mc, int guiHeight) {
+        try {
+            if (mc.level == null) return -1;
+            net.minecraft.world.scores.Scoreboard sb = mc.level.getScoreboard();
+            net.minecraft.world.scores.Objective o = sb.getDisplayObjective(net.minecraft.world.scores.DisplaySlot.SIDEBAR);
+            if (o == null) return -1;
+            long lines = Math.min(15, sb.listPlayerScores(o).stream().filter(e -> !e.isHidden()).count());
+            return guiHeight / 2 + (int) (lines * 9) / 3 + 1;
+        } catch (RuntimeException e) {
+            return -1;
+        }
     }
 
     public static boolean gearContains(double mx, double my) {
@@ -137,7 +157,7 @@ public final class GambleHud {
             Style.divider(g, x0, ty, cw, alpha);
             ty += 4;
             Style.pill(g, font, x0, ty, "REFUND", Colors.RED);
-            Txt.draw(g, font, "outside range", x0 + Txt.width(font, "REFUND") + 10, ty + 1, Colors.MUTED, Style.shadow);
+            if (st.cardLabels) Txt.draw(g, font, "outside range", x0 + Txt.width(font, "REFUND") + 10, ty + 1, Colors.MUTED, Style.shadow);
             ty += 12;
             for (int i = 0; i < refundRows; i++) {
                 GambleState.Bet b = refunds.get(i);
@@ -152,6 +172,7 @@ public final class GambleHud {
             }
         }
 
+        if (footerHeight(st, chatOpen) == 0) return;
         Style.divider(g, x0, ty, cw, alpha);
         String toast = st.toast();
         String footer;
@@ -168,8 +189,23 @@ public final class GambleHud {
         } else {
             footer = GambleState.keyName(st.openKey) + ": hide  |  " + GambleState.keyName(st.settingsKey) + ": panel";
         }
-        Txt.draw(g, font, Txt.cut(font, footer, cw), x0, ty + 4, color, Style.shadow);
-        Txt.draw(g, font, "discord.gg/B64z86e9ZY", x0, ty + 14, Colors.ACCENT_B, Style.shadow);
+        int line = ty + 4;
+        if (chatOpen || toast != null) { // a message takes the first line
+            Txt.draw(g, font, Txt.cut(font, footer, cw), x0, line, color, Style.shadow);
+            line += 10;
+        }
+        if (st.cardKeys) { // every key, "Not set" in yellow so it's obvious
+            Txt.draw(g, font, Txt.cut(font, st.bindsLine1(), cw), x0, line, st.nextKey < 0 ? Colors.YELLOW : Colors.MUTED, Style.shadow);
+            Txt.draw(g, font, Txt.cut(font, st.bindsLine2(), cw), x0, line + 10, Colors.MUTED, Style.shadow);
+            line += 20;
+        }
+        if (st.cardLink) Txt.draw(g, font, "discord.gg/B64z86e9ZY", x0, line, Colors.ACCENT_B, Style.shadow);
+    }
+
+    // the card's bottom part: the key hints line (or a message) and the Discord link - each can be switched off (Clean)
+    private static int footerHeight(GambleState st, boolean chatOpen) {
+        int lines = (chatOpen || st.toast() != null ? 1 : 0) + (st.cardKeys ? 2 : 0) + (st.cardLink ? 1 : 0);
+        return lines == 0 ? 0 : 6 + lines * 10;
     }
 
     // text up to maxScale, shrunk to fit maxWidth but never below normal size
